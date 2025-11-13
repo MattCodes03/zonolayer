@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zonolayer"
+version = "0.1.0"
+description = "Last-layer uncertainty modeling via zonotopic representations."
+authors = [{ name = "Matthew McCann" }, { name = "Marco De Angelis" }]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+dependencies = ["numpy", "torch", "matplotlib"]
+
+[project.urls]
+"Homepage" = "https://github.com/MattCodes03/zonolayer"
+"Repository" = "https://github.com/MattCodes03/zonolayer"
+"Bug Tracker" = "https://github.com/MattCodes03/zonolayer/issues"
