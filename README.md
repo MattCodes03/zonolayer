@@ -3,6 +3,8 @@
 **Matthew McCann**  
 _University of Strathclyde, 2025_
 
+Developed with guidance and support from **[Marco de Angelis](https://github.com/marcodeangelis)**, University of Strathclyde
+
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PyPI Version](https://img.shields.io/pypi/v/zonolayer)](https://pypi.org/project/zonolayer/)
