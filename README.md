@@ -1,5 +1,8 @@
 # Zonolayer
 
+**Matthew McCann**  
+_University of Strathclyde_
+
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PyPI Version](https://img.shields.io/pypi/v/zonolayer)](https://pypi.org/project/zonolayer/)
@@ -33,4 +36,12 @@ pip install zonolayer
 ---
 ## Getting Started
 See `basic_usage.py` in the examples directory for the quickest method to get up and running and start experimenting with the library.
+
+### Example Plots
+
+Zonolayer produces zonotopic bounds and statistical prediction intervals. Example outputs:
+
+![Zonotopic bounds](examples/ExampleOutput.png)
+![Zonotopic bounds 2](examples/ExampleOutput2.png)
+
 
