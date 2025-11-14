@@ -8,13 +8,14 @@ from zonolayer import Zonolayer
 # 1. Define a simple neural network with latent output
 
 class CentreNet(nn.Module):
-    def __init__(self, input_dim=1, hidden_dim=16, latent_dim=8):
+    def __init__(self, input_dim=1, hidden_dim=64, latent_dim=8):
         super().__init__()
         self.feature_net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, latent_dim),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Linear(hidden_dim, latent_dim),
         )
         self.output_layer = nn.Linear(latent_dim, 1)
 
