@@ -25,6 +25,8 @@ By default, Zonolayer relies on **NumPy** for all numerical computations and int
 
 If you require more advanced interval arithmetic (e.g., using [`pyinterval`](https://pypi.org/project/pyinterval/) or other specialized packages), you can install the optional dependencies and modify the code accordingly, or submit a request for support to be added. I appreciate any and all feedback.
 
+IPM support using the [PyIPM library by J. Sadeghi](https://github.com/JCSadeghi/PyIPM)
+
 ---
 
 ## Installation
