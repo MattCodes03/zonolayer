@@ -88,8 +88,12 @@ def train_centre(x_t, y_lb_t, y_ub_t, epochs=200, lr=1e-3, batch_size=64, print_
 centre_net = train_centre(x_t, y_lb_t, y_ub_t)
 
 # 4. Apply Zonolayer for last-layer imprecision modeling
-zl = Zonolayer(centre_net, lambda_reg=1e-6, alpha=0.05)
-results = zl.predict(x_t, y_lower, y_upper, n_points=n)
+
+# Test points
+test_set = torch.linspace(x_t.min(), x_t.max(), n).unsqueeze(1)
+
+zl = Zonolayer(centre_net, lambda_reg=1e-4, alpha=0.05)
+results = zl.compute(x_t, test_set, y_lower, y_upper)
 
 # Unpack results
 y_lower_pred = results["y_lower_pred"]

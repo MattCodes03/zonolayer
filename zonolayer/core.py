@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from scipy.stats import t
 from .zonotope import Zonotope
+import PyIPM
 
 
 class Zonolayer:
@@ -90,12 +91,29 @@ class Zonolayer:
             "pi_upper": y_pred_max_stat,
         }
 
-    def predict(
+    def _compute_ipm_bands(self, latent_train, latent_test, y_lower, y_upper, degree=1):
+        """Internal routine to compute bounds using PyIPM."""
+
+        latent_train = latent_train.detach().numpy().astype(np.float64)
+        latent_test = latent_test.detach().numpy().astype(np.float64)
+        y_train = 0.5 * (y_lower + y_upper)
+        y_train = np.asarray(y_train, dtype=np.float64).ravel()
+
+        print("train", latent_train.shape, y_train.shape)
+        print("test", latent_test.shape)
+
+        model = PyIPM.IPM(polynomial_degree=degree)
+        model.fit(latent_train, y_train)
+
+        return model.predict(latent_test)
+
+    def compute(
         self,
         x_train: torch.Tensor,
+        x_test: torch.Tensor,
         y_lower: torch.Tensor,
         y_upper: torch.Tensor,
-        n_points: int,
+        ipm: bool = False
     ):
         """
         Compute last-layer zonotope bounds and statistical prediction intervals.
@@ -106,16 +124,18 @@ class Zonolayer:
             Training inputs.
         y_lower, y_upper : numpy.ndarray
             Lower and upper interval endpoints for training targets.
-        n_points : int, optional
-            Number of points to evaluate for visualization / interpolation.
+        ipm : bool, optional
+            Whether to use PyIPM for bound computations (default: False).
 
         Returns
         -------
-        dict
+        if ipm False: dict
             Dictionary containing:
             - y_lower_pred, y_upper_pred : zonotopic bounds
             - pi_lower, pi_upper : statistical prediction intervals
             - Beta_zono, Yhat_zono : zonotopic representations
+        if ipm True: lower, upper : numpy.ndarrays
+            Lower and upper bounds from PyIPM.
         """
         self.centre_net.eval()
 
@@ -124,14 +144,10 @@ class Zonolayer:
         y_lb_sorted = y_lower[idx]
         y_ub_sorted = y_upper[idx]
 
-        # Generate uniform test grid
-        x_plot = torch.linspace(
-            x_train.min(), x_train.max(), n_points).unsqueeze(1)
-
         with torch.no_grad():
             # Predictions and latents for test points
             centre_pred, latent_test = self.centre_net(
-                x_plot, return_latent=True)
+                x_test, return_latent=True)
 
             # Latents for training points
             _, latent_train = self.centre_net(x_sorted, return_latent=True)
@@ -142,10 +158,15 @@ class Zonolayer:
         y_lb_np = y_lb_sorted.flatten()
         y_ub_np = y_ub_sorted.flatten()
 
-        return self._compute_zonotope_bounds(
-            predicted_centre=centre_pred.cpu().numpy(),
-            latent_train=latent_train_np,
-            y_lower=y_lb_np,
-            y_upper=y_ub_np,
-            latent_test=latent_test_np,
-        )
+        if ipm:
+            # Use PyIPM for zonotope computations
+            return self._compute_ipm_bands(latent_train, latent_test, y_lb_np, y_ub_np)
+        else:
+
+            return self._compute_zonotope_bounds(
+                predicted_centre=centre_pred.cpu().numpy(),
+                latent_train=latent_train_np,
+                y_lower=y_lb_np,
+                y_upper=y_ub_np,
+                latent_test=latent_test_np,
+            )
