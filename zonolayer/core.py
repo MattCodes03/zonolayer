@@ -91,18 +91,20 @@ class Zonolayer:
             "pi_upper": y_pred_max_stat,
         }
 
-    def _compute_ipm_bands(self, latent_train, latent_test, y_lower, y_upper, degree=1):
+    def _compute_ipm_bounds(self, latent_train, latent_test, y_lower, y_upper):
         """Internal routine to compute bounds using PyIPM."""
 
         latent_train = latent_train.detach().numpy().astype(np.float64)
         latent_test = latent_test.detach().numpy().astype(np.float64)
-        y_train = 0.5 * (y_lower + y_upper)
-        y_train = np.asarray(y_train, dtype=np.float64).ravel()
 
-        print("train", latent_train.shape, y_train.shape)
-        print("test", latent_test.shape)
+        y_lower = np.asarray(y_lower, dtype=np.float64).ravel()
+        y_upper = np.asarray(y_upper, dtype=np.float64).ravel()
 
-        model = PyIPM.IPM(polynomial_degree=degree)
+        # Double the dataset by using both endpoints, since PyIPM handles point targets
+        latent_train = np.vstack([latent_train, latent_train])
+        y_train = np.concatenate([y_lower, y_upper])
+
+        model = PyIPM.IPM()  # 1st Degree Polynomial Model
         model.fit(latent_train, y_train)
 
         return model.predict(latent_test)
@@ -160,7 +162,7 @@ class Zonolayer:
 
         if ipm:
             # Use PyIPM for zonotope computations
-            return self._compute_ipm_bands(latent_train, latent_test, y_lb_np, y_ub_np)
+            return self._compute_ipm_bounds(latent_train, latent_test, y_lb_np, y_ub_np)
         else:
 
             return self._compute_zonotope_bounds(

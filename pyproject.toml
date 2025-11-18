@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zonolayer"
-version = "0.2.0"
+version = "0.3.1"
 description = "Last-layer uncertainty modeling via zonotopic representations."
 authors = [{ name = "Matthew McCann" }, { name = "Marco De Angelis" }]
 readme = "README.md"
