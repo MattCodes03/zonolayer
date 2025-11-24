@@ -31,6 +31,33 @@ class Zonolayer:
         self.lambda_reg = lambda_reg
         self.alpha = alpha
 
+    def _compute_prediction_intervals(self, latent_train, latent_test, y_lower, y_upper, y_lower_pred, y_upper_pred, predicted_centre):
+        # Statistical uncertainty
+        Phi = latent_train
+        predicted_centre = np.asarray(predicted_centre).flatten()
+        y_mid = (y_upper + y_lower) / 2
+        beta_hat = np.linalg.lstsq(Phi, y_mid, rcond=None)[0]
+        residuals = y_mid - Phi @ beta_hat
+        sigma2 = np.mean(residuals**2)
+        sigma = np.sqrt(sigma2)
+
+        # t-value
+        n = len(latent_test)
+        t_val = t.ppf(1 - self.alpha / 2, df=n - 1)
+        r = 0.5 * (y_upper_pred - y_lower_pred)
+
+        # Prediction standard error
+        Phi_T_Phi_inv = np.linalg.inv(
+            Phi.T @ Phi + self.lambda_reg * np.eye(Phi.shape[1]))
+        SE_pred = sigma * \
+            np.sqrt(1 + np.sum((latent_test @ Phi_T_Phi_inv) * latent_test, axis=1))
+
+        # Combine statistical and zonotopic uncertainty
+        y_pred_min_stat = predicted_centre - r - t_val * SE_pred
+        y_pred_max_stat = predicted_centre + r + t_val * SE_pred
+
+        return y_pred_min_stat, y_pred_max_stat
+
     # Core methods
     def _compute_zonotope_bounds(self, predicted_centre, latent_train, y_lower, y_upper, latent_test):
         """Internal routine to compute zonotope-based bounds and statistical intervals."""
@@ -58,28 +85,8 @@ class Zonolayer:
         Yhat_zono = Beta_zono.affine_map(latent_test)
         y_lower_pred, y_upper_pred = Yhat_zono.output_interval()
 
-        # Statistical uncertainty
-        predicted_centre = np.asarray(predicted_centre).flatten()
-        y_mid = (y_upper + y_lower) / 2
-        beta_hat = np.linalg.lstsq(Phi, y_mid, rcond=None)[0]
-        residuals = y_mid - Phi @ beta_hat
-        sigma2 = np.mean(residuals**2)
-        sigma = np.sqrt(sigma2)
-
-        # t-value
-        n = len(latent_test)
-        t_val = t.ppf(1 - self.alpha / 2, df=n - 1)
-        r = 0.5 * (y_upper_pred - y_lower_pred)
-
-        # Prediction standard error
-        Phi_T_Phi_inv = np.linalg.inv(
-            Phi.T @ Phi + self.lambda_reg * np.eye(Phi.shape[1]))
-        SE_pred = sigma * \
-            np.sqrt(1 + np.sum((latent_test @ Phi_T_Phi_inv) * latent_test, axis=1))
-
-        # Combine statistical and zonotopic uncertainty
-        y_pred_min_stat = predicted_centre - r - t_val * SE_pred
-        y_pred_max_stat = predicted_centre + r + t_val * SE_pred
+        y_pred_min_stat, y_pred_max_stat = self._compute_prediction_intervals(
+            latent_train, latent_test, y_lower, y_upper, y_lower_pred, y_upper_pred, predicted_centre)
 
         return {
             "pred_centre": predicted_centre,
@@ -113,9 +120,9 @@ class Zonolayer:
         self,
         x_train: torch.Tensor,
         x_test: torch.Tensor,
-        y_lower: torch.Tensor,
-        y_upper: torch.Tensor,
-        ipm: bool = False
+        y_lower: np.ndarray,
+        y_upper: np.ndarray,
+        ipm: bool = False,
     ):
         """
         Compute last-layer zonotope bounds and statistical prediction intervals.
@@ -131,13 +138,37 @@ class Zonolayer:
 
         Returns
         -------
-        if ipm False: dict
-            Dictionary containing:
-            - y_lower_pred, y_upper_pred : zonotopic bounds
-            - pi_lower, pi_upper : statistical prediction intervals
-            - Beta_zono, Yhat_zono : zonotopic representations
-        if ipm True: lower, upper : numpy.ndarrays
-            Lower and upper bounds from PyIPM.
+        dict
+            If ``ipm=False`` (default), returns a dictionary containing:
+
+                - ``y_lower_pred`` : numpy.ndarray  
+                  Zonotope-derived lower bounds for the test points.
+
+                - ``y_upper_pred`` : numpy.ndarray  
+                  Zonotope-derived upper bounds for the test points.
+
+                - ``pi_lower`` : numpy.ndarray  
+                  Lower statistical prediction interval.
+
+                - ``pi_upper`` : numpy.ndarray  
+                  Upper statistical prediction interval.
+
+                - ``Beta_zono`` : Zonotope  
+                  Zonotopic representation of the mapped parameters.
+
+                - ``Yhat_zono`` : Zonotope  
+                  Zonotopic representation of the mapped test predictions.
+
+            If ``ipm=True``, returns:
+
+                - ``zonotope`` : dict  
+                  The same zonotope dictionary described above.
+
+                - ``ipm_lower`` : numpy.ndarray  
+                  PyIPM-derived lower bounds for the test points.
+
+                - ``ipm_upper`` : numpy.ndarray  
+                  PyIPM-derived upper bounds for the test points.
         """
         self.centre_net.eval()
 
@@ -160,15 +191,22 @@ class Zonolayer:
         y_lb_np = y_lb_sorted.flatten()
         y_ub_np = y_ub_sorted.flatten()
 
-        if ipm:
-            # Use PyIPM for zonotope computations
-            return self._compute_ipm_bounds(latent_train, latent_test, y_lb_np, y_ub_np)
-        else:
+        # Always compute the zonotope bounds
+        zono_dict = self._compute_zonotope_bounds(
+            predicted_centre=centre_pred.numpy(),
+            latent_train=latent_train_np,
+            y_lower=y_lb_np,
+            y_upper=y_ub_np,
+            latent_test=latent_test_np,
+        )
 
-            return self._compute_zonotope_bounds(
-                predicted_centre=centre_pred.cpu().numpy(),
-                latent_train=latent_train_np,
-                y_lower=y_lb_np,
-                y_upper=y_ub_np,
-                latent_test=latent_test_np,
+        if ipm:
+            # Compute PyIPM bounds
+            ipm_lower, ipm_upper = self._compute_ipm_bounds(
+                latent_train, latent_test, y_lb_np, y_ub_np
             )
+
+            # Return both
+            return zono_dict, ipm_lower, ipm_upper,
+
+        return zono_dict

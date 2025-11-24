@@ -12,9 +12,9 @@ class CentreNet(nn.Module):
         super().__init__()
         self.feature_net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(hidden_dim, latent_dim),
         )
         self.output_layer = nn.Linear(latent_dim, 1)
