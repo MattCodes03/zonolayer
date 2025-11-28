@@ -24,6 +24,7 @@ class Zonotope:
         return lower, upper
 
     def affine_map(self, A, b=None):
-        new_centre = A @ self.centre + (b if b is not None else 0)
+        c = self.centre.reshape(-1)
+        new_centre = A @ c + (b if b is not None else 0)
         new_generators = A @ self.generators
         return Zonotope(new_centre, new_generators)
