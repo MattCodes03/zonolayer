@@ -39,7 +39,7 @@ pip install zonolayer
 
 ---
 ## Getting Started
-See `basic_usage.py` in the examples directory for the quickest method to get up and running and start experimenting with the library.
+See the `examples` directory for working examples with different types of neural networks and data.
 
 ### Example Plots
 
