@@ -9,112 +9,67 @@ class Zonolayer:
     """
     Zonolayer: Last-layer uncertainty modeling via zonotopic representations.
 
-    This class fits a last-layer affine transformation to interval-bounded data,
-    producing zonotopic output bounds and statistical prediction intervals.
-
+    Fits a last-layer affine transformation to interval-bounded data,
+    producing tight zonotope output bounds.
     """
 
-    def __init__(self, centre_net, lambda_reg: float = 1e-6, alpha: float = 0.05):
-        """
-        Parameters
-        ----------
-        centre_net : torch.nn.Module
-            The trained neural network whose last-layer latent features are used.
-
-        lambda_reg : float, optional
-            Regularization strength for the pseudoinverse (default: 1e-6).
-
-        alpha : float, optional
-            Significance level for prediction intervals (default: 0.05 → 95% CI).
-        """
+    def __init__(self, centre_net, lambda_reg: float = 1e-6):
         self.centre_net = centre_net
         self.lambda_reg = lambda_reg
-        self.alpha = alpha
 
-    def _compute_prediction_intervals(self, latent_train, latent_test, y_lower, y_upper, y_lower_pred, y_upper_pred, predicted_centre):
-        """Internal routine to compute statistical prediction intervals"""
-        # Statistical uncertainty
-        Phi = latent_train  # shape (n_train, latent_dim)
-        predicted_centre = np.atleast_1d(predicted_centre).reshape(-1)
-        y_mid = (y_upper + y_lower) / 2
-        beta_hat = np.linalg.lstsq(Phi, y_mid, rcond=None)[0]
-        residuals = y_mid - Phi @ beta_hat
-        sigma2 = np.mean(residuals**2)
-        sigma = np.sqrt(sigma2)
+    def _compute_zonotope_bounds(
+        self,
+        predicted_centre,
+        latent_train,
+        y_lower,
+        y_upper,
+        latent_test,
+    ):
+        Phi = np.asarray(latent_train)
+        Phi_test = np.asarray(latent_test)
 
-        # t-value
-        n = latent_test.shape[0]
-        t_val = t.ppf(1 - self.alpha / 2, df=n - 1)
-        r = 0.5 * (y_upper_pred - y_lower_pred)
-
-        # Prediction standard error
-        Phi_T_Phi_inv = np.linalg.inv(
-            Phi.T @ Phi + self.lambda_reg * np.eye(Phi.shape[1]))
-        SE_pred = sigma * \
-            np.sqrt(1 + np.sum((latent_test @ Phi_T_Phi_inv) * latent_test, axis=1))
-
-        # Combine zonotope and statistical uncertainty
-        y_pred_min_stat = predicted_centre - r - t_val * SE_pred
-        y_pred_max_stat = predicted_centre + r + t_val * SE_pred
-        return y_pred_min_stat, y_pred_max_stat
-
-    # Core methods
-    def _compute_zonotope_bounds(self, predicted_centre, latent_train, y_lower, y_upper, latent_test):
-        """Internal routine to compute zonotope-based bounds"""
-
-        latent_train = np.asarray(latent_train)
-        latent_test = np.asarray(latent_test)
         y_lower = np.atleast_1d(y_lower).reshape(-1)
         y_upper = np.atleast_1d(y_upper).reshape(-1)
+        predicted_centre = np.atleast_1d(predicted_centre).reshape(-1)
 
-        latent_dim = latent_train.shape[1]
+        n, d = Phi.shape
 
-        # Centre and radii of output intervals
-        centre_y = (y_lower + y_upper) / 2
-        radii_y = (y_upper - y_lower) / 2
+        # Interval centre and radii
+        centre_y = (y_lower + y_upper) / 2.0
+        radii_y = (y_upper - y_lower) / 2.0
 
-        # Create zonotope in output space
-        generators_y = np.diag(radii_y)
-        Y_zono = Zonotope(centre_y, generators_y)
+        # Regularization
+        lambda_reg = max(self.lambda_reg, 1e-8 * np.trace(Phi.T @ Phi) / d)
 
-        Phi_T_Phi = latent_train.T @ latent_train
-        M = np.linalg.pinv(Phi_T_Phi + self.lambda_reg *
-                           np.eye(latent_dim)) @ latent_train.T
+        # Linear operator from training to test
+        M = np.linalg.pinv(Phi.T @ Phi + lambda_reg * np.eye(d)) @ Phi.T
+        A = Phi_test @ M
 
-        # Map zonotope into parameter space
-        Beta_zono = Y_zono.affine_map(M)
+        # Compute tight L1 zonotope bounds
+        centre_pred = A @ centre_y
+        radius = np.sum(np.abs(A) * radii_y, axis=1)
 
-        # Map into test feature space
-        Yhat_zono = Beta_zono.affine_map(latent_test)
-        y_lower_pred, y_upper_pred = Yhat_zono.output_interval()
-
-        y_pred_min_stat, y_pred_max_stat = self._compute_prediction_intervals(
-            latent_train, latent_test, y_lower, y_upper, y_lower_pred, y_upper_pred, predicted_centre)
+        y_lower_pred = centre_pred - radius
+        y_upper_pred = centre_pred + radius
 
         return {
             "pred_centre": predicted_centre,
-            "Beta_zono": Beta_zono,
-            "Yhat_zono": Yhat_zono,
             "y_lower_pred": y_lower_pred,
             "y_upper_pred": y_upper_pred,
-            "pi_lower": y_pred_min_stat,
-            "pi_upper": y_pred_max_stat,
         }
 
     def _compute_ipm_bounds(self, latent_train, latent_test, y_lower, y_upper):
-        """Internal routine to compute bounds using PyIPM."""
-
         latent_train = latent_train.detach().numpy().astype(np.float64)
         latent_test = latent_test.detach().numpy().astype(np.float64)
 
         y_lower = np.asarray(y_lower, dtype=np.float64).ravel()
         y_upper = np.asarray(y_upper, dtype=np.float64).ravel()
 
-        # Double the dataset by using both endpoints, since PyIPM handles point targets
+        # Double dataset for PyIPM point regression
         latent_train = np.vstack([latent_train, latent_train])
         y_train = np.concatenate([y_lower, y_upper])
 
-        model = PyIPM.IPM()  # 1st Degree Polynomial Model
+        model = PyIPM.IPM()
         model.fit(latent_train, y_train)
 
         return model.predict(latent_test)
@@ -127,65 +82,17 @@ class Zonolayer:
         y_upper: np.ndarray,
         ipm: bool = False,
     ):
-        """
-        Compute last-layer zonotope bounds and statistical prediction intervals.
-
-        Parameters
-        ----------
-        x_train : torch.Tensor
-            Training inputs.
-        y_lower, y_upper : numpy.ndarray
-            Lower and upper interval endpoints for training targets.
-        ipm : bool, optional
-            Whether to use PyIPM for bound computations (default: False).
-
-        Returns
-        -------
-        dict
-            If ``ipm=False`` (default), returns a dictionary containing:
-
-                - ``y_lower_pred`` : numpy.ndarray
-                  Zonotope-derived lower bounds for the test points.
-
-                - ``y_upper_pred`` : numpy.ndarray
-                  Zonotope-derived upper bounds for the test points.
-
-                - ``pi_lower`` : numpy.ndarray
-                  Lower statistical prediction interval.
-
-                - ``pi_upper`` : numpy.ndarray
-                  Upper statistical prediction interval.
-
-                - ``Beta_zono`` : Zonotope
-                  Zonotopic representation of the mapped parameters.
-
-                - ``Yhat_zono`` : Zonotope
-                  Zonotopic representation of the mapped test predictions.
-
-            If ``ipm=True``, returns:
-
-                - ``zonotope`` : dict
-                  The same zonotope dictionary described above.
-
-                - ``ipm_upper`` : numpy.ndarray
-                  PyIPM-derived upper bounds for the test points.
-
-                - ``ipm_lower`` : numpy.ndarray
-                  PyIPM-derived lower bounds for the test points.
-        """
         self.centre_net.eval()
         with torch.no_grad():
             centre_pred, latent_test = self.centre_net(
                 x_test, return_latent=True)
-            _, latent_train = self.centre_net(
-                x_train, return_latent=True)
+            _, latent_train = self.centre_net(x_train, return_latent=True)
 
         latent_train_np = latent_train.numpy()
         latent_test_np = latent_test.numpy()
         y_lower_np = np.atleast_1d(y_lower).flatten()
         y_upper_np = np.atleast_1d(y_upper).flatten()
 
-        # Compute the zonotope bounds
         zono_dict = self._compute_zonotope_bounds(
             predicted_centre=centre_pred.numpy(),
             latent_train=latent_train_np,
@@ -195,11 +102,9 @@ class Zonolayer:
         )
 
         if ipm:
-            # Compute PyIPM bounds
             ipm_upper, ipm_lower = self._compute_ipm_bounds(
                 latent_train, latent_test, y_lower_np, y_upper_np
             )
-
             return zono_dict, ipm_upper, ipm_lower
 
         return zono_dict
