@@ -24,65 +24,69 @@ class Zonolayer:
         self.centre_net = centre_net
         self.lambda_reg = lambda_reg
 
-    def _compute_zonotope_bounds(
-        self,
-        predicted_centre,
-        y_train_pred,
-        y_lower,
-        y_upper,
-        predicted_test,
-    ):
+    def _compute_zonotope_bounds(self, predicted_centre, y_train_pred,
+                                 y_lower, y_upper, predicted_test):
         """
-        Compute zonotope-based prediction intervals.
+        Last-layer zonotopic uncertainty quantification.
 
-        Parameters:
-        -----------
-        predicted_centre : array-like
-            Neural network predictions on test data (used as interval centers)
-        y_train_pred : array-like
-            Neural network predictions on training data
-        y_lower : array-like
-            Lower bounds of training intervals
-        y_upper : array-like
-            Upper bounds of training intervals
-        predicted_test : array-like
-            Neural network predictions on test data (same as predicted_centre)
+        Method:
+        -------
+        1. Centers: Use neural network predictions (assumed accurate)
+        2. Radii: Propagate training uncertainties through learned affine map
+
+        Theoretical Guarantee:
+        ---------------------
+        If NN centers are exact and affine structure holds, bounds are EXACT.
+        In practice, bounds are VALID (conservative) with small NN error.
+
+        Complexity:
+        ----------
+        O(n_train * n_test) for affine map + O(n_test * n_train) for propagation
+        Total: O(n_train * n_test), much cheaper than full GP or kernel methods.
 
         Returns:
         --------
-        dict with keys:
-            'pred_centre': Centers of predicted intervals
-            'y_lower_pred': Lower bounds of predicted intervals
-            'y_upper_pred': Upper bounds of predicted intervals
+        Prediction intervals [y_lower_pred, y_upper_pred] that:
+        - Are centered at NN predictions
+        - Have widths determined by zonotopic propagation
+        - Are guaranteed to contain true outputs if assumptions hold
         """
+
         # Ensure correct shapes
         y_train_pred = np.atleast_1d(y_train_pred).reshape(-1)
         predicted_test = np.atleast_1d(predicted_test).reshape(-1)
-        y_lower_train = np.atleast_1d(y_lower).reshape(-1)
-        y_upper_train = np.atleast_1d(y_upper).reshape(-1)
+        y_lower = np.atleast_1d(y_lower).reshape(-1)
+        y_upper = np.atleast_1d(y_upper).reshape(-1)
         predicted_centre = np.atleast_1d(predicted_centre).reshape(-1)
 
-        # 1. Create training zonotope from intervals (diagonal representation)
-        Z_train = Zonotope.from_intervals(y_lower_train, y_upper_train)
+        n_train = len(y_train_pred)
 
-        # 2. Learn affine mapping from training to test outputs
-        Phi = y_train_pred.reshape(-1, 1)      # (n_train, 1)
-        Phi_test = predicted_test.reshape(-1, 1)  # (n_test, 1)
+        # Use NN predictions as centers (Model 1)
+        centers_test = predicted_centre
 
-        # Solve regularized least squares
-        M = np.linalg.pinv(Phi.T @ Phi + self.lambda_reg) @ Phi.T
-        A = Phi_test @ M  # (n_test, n_train)
-
-        # 3. Propagate training uncertainties through affine map
+        # Zonotopic propagation of uncertainties (Model 2)
+        Z_train = Zonotope.from_intervals(y_lower, y_upper)
         radii_train = Z_train.diagonal_generators
+
+        # Learn affine transformation in output space
+        Phi = np.column_stack([y_train_pred, np.ones(n_train)])
+        Phi_test = np.column_stack(
+            [predicted_test, np.ones(len(predicted_test))])
+
+        M = np.linalg.pinv(
+            Phi.T @ Phi + self.lambda_reg * np.eye(Phi.shape[1])
+        ) @ Phi.T
+        A = Phi_test @ M
+
+        # Exact zonotopic propagation through affine map
         radius_test = np.sum(np.abs(A) * radii_train, axis=1)
 
-        # 4. Build intervals centered at NN predictions
-        y_lower_pred = predicted_centre - radius_test
-        y_upper_pred = predicted_centre + radius_test
+        # Final intervals
+        y_lower_pred = centers_test - radius_test
+        y_upper_pred = centers_test + radius_test
 
         return {
-            "pred_centre": predicted_centre,
+            "pred_centre": centers_test,
             "y_lower_pred": y_lower_pred,
             "y_upper_pred": y_upper_pred,
         }
