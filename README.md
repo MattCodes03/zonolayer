@@ -17,7 +17,7 @@ It provides **zonotopic output bounds** for neural networks with interval-bounde
 ## Features
 
 - Compute **zonotopic bounds** for last-layer outputs.
-- Compatible with PyTorch networks exposing latent features.
+- Compatible with PyTorch networks.
 - Modular, research-friendly, and easy to use.
 
 By default, Zonolayer relies on **NumPy** for all numerical computations and interval handling.  
