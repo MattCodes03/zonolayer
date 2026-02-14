@@ -45,8 +45,8 @@ See the `examples` directory for working examples with different types of neural
 
 Zonolayer produces zonotopic bounds and statistical prediction intervals. Example outputs:
 
-![Zonotopic bounds](examples/ExampleOutput.png)
-![Zonotopic bounds 2](examples/ExampleOutput2.png)
+![Zonotopic bounds](examples/energy_efficiency_zonolayer.pdf)
+![Zonotopic bounds 2](examples/UnivariateNonLinear.pdf)
 
 ---
 ## License
