@@ -41,9 +41,6 @@ pip install zonolayer
 See the `examples` directory for working examples with different types of neural networks and data.
 
 ### Example Plots
-
-Example outputs:
-
 ![Zonotopic bounds](examples/energy_efficiency_zonolayer.png)
 ![Zonotopic bounds 2](examples/UnivariateNonLinear.png)
 
