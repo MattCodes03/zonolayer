@@ -16,7 +16,7 @@ class Zonolayer:
     -----------
     centre_net : torch.nn.Module
         Neural network for center predictions. Must have a forward() method.
-    lambda_reg : float, default=1e-6
+    lambda_reg : float (default=1e-6)
         Regularization parameter for the affine mapping.
     """
 
@@ -24,8 +24,8 @@ class Zonolayer:
         self.centre_net = centre_net
         self.lambda_reg = lambda_reg
 
-    def _compute_zonotope_bounds(self, predicted_centre, y_train_pred,
-                                 y_lower, y_upper, predicted_test):
+    def _compute_zonotope_bounds(self, y_train_pred,
+                                 y_lower, y_upper, y_test_pred, ipm):
         """
         Last-layer zonotopic uncertainty quantification.
 
@@ -54,24 +54,19 @@ class Zonolayer:
 
         # Ensure correct shapes
         y_train_pred = np.atleast_1d(y_train_pred).reshape(-1)
-        predicted_test = np.atleast_1d(predicted_test).reshape(-1)
+        y_test_pred = np.atleast_1d(y_test_pred).reshape(-1)
         y_lower = np.atleast_1d(y_lower).reshape(-1)
         y_upper = np.atleast_1d(y_upper).reshape(-1)
-        predicted_centre = np.atleast_1d(predicted_centre).reshape(-1)
 
         n_train = len(y_train_pred)
 
-        # Use NN predictions as centers (Model 1)
-        centers_test = predicted_centre
-
-        # Zonotopic propagation of uncertainties (Model 2)
+        # Zonotopic propagation of uncertainties
         Z_train = Zonotope.from_intervals(y_lower, y_upper)
         radii_train = Z_train.diagonal_generators
 
         # Learn affine transformation in output space
         Phi = np.column_stack([y_train_pred, np.ones(n_train)])
-        Phi_test = np.column_stack(
-            [predicted_test, np.ones(len(predicted_test))])
+        Phi_test = np.column_stack([y_test_pred, np.ones(len(y_test_pred))])
 
         M = np.linalg.pinv(
             Phi.T @ Phi + self.lambda_reg * np.eye(Phi.shape[1])
@@ -82,17 +77,42 @@ class Zonolayer:
         radius_test = np.sum(np.abs(A) * radii_train, axis=1)
 
         # Final intervals
-        y_lower_pred = centers_test - radius_test
-        y_upper_pred = centers_test + radius_test
+        y_lower_pred = y_test_pred - radius_test
+        y_upper_pred = y_test_pred + radius_test
 
-        return {
-            "pred_centre": centers_test,
-            "y_lower_pred": y_lower_pred,
-            "y_upper_pred": y_upper_pred,
-        }
+        if ipm:
+            ipm_upper, ipm_lower = self._compute_ipm_bounds(
+                y_train_pred, y_test_pred, y_lower, y_upper)
+            return {
+                "pred_centre": y_test_pred,
+                "y_lower_pred": y_lower_pred,
+                "y_upper_pred": y_upper_pred,
+                "y_lower_ipm": ipm_lower,
+                "y_upper_ipm": ipm_upper
+            }
+        else:
+            return {
+                "pred_centre": y_test_pred,
+                "y_lower_pred": y_lower_pred,
+                "y_upper_pred": y_upper_pred,
+            }
 
-    def _compute_ipm_bounds():
-        pass
+    def _compute_ipm_bounds(self, x_train, x_test, y_lower, y_upper):
+        ipm_model = PyIPM.IPM()
+
+        x_train = np.asarray(x_train, dtype=np.float64).reshape(-1, 1)
+        x_test = np.asarray(x_test, dtype=np.float64).reshape(-1, 1)
+        y_lower = np.asarray(y_lower, dtype=np.float64).flatten()
+        y_upper = np.asarray(y_upper, dtype=np.float64).flatten()
+
+        # Combination of Endpoints
+        x_train = np.vstack([x_train, x_train])
+        y_train = np.concatenate([y_lower, y_upper])
+        # y_train = np.column_stack([y_lower, y_upper])
+
+        ipm_model.fit(x_train, y_train)
+
+        return ipm_model.predict(x_test)
 
     def compute(
         self,
@@ -100,28 +120,43 @@ class Zonolayer:
         x_test: torch.Tensor,
         y_lower: np.ndarray,
         y_upper: np.ndarray,
+        ipm: bool = False
     ):
         """
         Compute prediction intervals for test data.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         x_train : torch.Tensor
-            Training features
+            Training feature matrix.
         x_test : torch.Tensor
-            Test features
+            Test feature matrix.
         y_lower : np.ndarray
-            Lower bounds of training target intervals
+            Lower bounds of training target intervals.
         y_upper : np.ndarray
-            Upper bounds of training target intervals
+            Upper bounds of training target intervals.
+        ipm : bool, optional (default=False)
+            If True, prediction interval bounds are additionally
+            computed using the IPM method (via PyIPM).
 
-        Returns:
-        --------
-        dict with keys:
-            'pred_centre': Centers of predicted intervals (shape: n_test)
-            'y_lower_pred': Lower bounds of predicted intervals (shape: n_test)
-            'y_upper_pred': Upper bounds of predicted intervals (shape: n_test)
+        Returns
+        -------
+        dict
+            Dictionary containing:
+                'pred_centre' : np.ndarray
+                    Centers of predicted intervals (shape: n_test).
+                'y_lower_pred' : np.ndarray
+                    Predicted lower bounds (shape: n_test).
+                'y_upper_pred' : np.ndarray
+                    Predicted upper bounds (shape: n_test).
+
+            If `ipm=True`, the dictionary additionally contains:
+                'y_lower_ipm' : np.ndarray
+                    IPM-computed lower bounds (shape: n_test).
+                'y_upper_ipm' : np.ndarray
+                    IPM-computed upper bounds (shape: n_test).
         """
+
         # Get predictions from the neural network
         self.centre_net.eval()
         with torch.no_grad():
@@ -134,9 +169,9 @@ class Zonolayer:
 
         # Compute zonotope-based intervals
         return self._compute_zonotope_bounds(
-            predicted_centre=centre_pred,
             y_train_pred=centre_train,
             y_lower=y_lower,
             y_upper=y_upper,
-            predicted_test=centre_pred,
+            y_test_pred=centre_pred,
+            ipm=ipm,
         )

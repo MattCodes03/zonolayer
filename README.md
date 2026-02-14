@@ -10,14 +10,13 @@ Developed with guidance and support from **[Marco de Angelis](https://github.com
 [![PyPI Version](https://img.shields.io/pypi/v/zonolayer)](https://pypi.org/project/zonolayer/)
 
 **Zonolayer** is a Python package for **last-layer uncertainty modeling via zonotopic representations**.  
-It provides **zonotopic output bounds** and **statistical prediction intervals** for neural networks with interval-bounded outputs, enabling precise and interpretable uncertainty quantification in regression tasks.
+It provides **zonotopic output bounds** for neural networks with interval-bounded outputs, enabling precise and interpretable uncertainty quantification in regression tasks.
 
 ---
 
 ## Features
 
 - Compute **zonotopic bounds** for last-layer outputs.
-- Combine **statistical prediction intervals** with interval uncertainty.
 - Compatible with PyTorch networks exposing latent features.
 - Modular, research-friendly, and easy to use.
 
@@ -43,10 +42,10 @@ See the `examples` directory for working examples with different types of neural
 
 ### Example Plots
 
-Zonolayer produces zonotopic bounds and statistical prediction intervals. Example outputs:
+Example outputs:
 
-![Zonotopic bounds](examples/energy_efficiency_zonolayer.pdf)
-![Zonotopic bounds 2](examples/UnivariateNonLinear.pdf)
+![Zonotopic bounds](examples/energy_efficiency_zonolayer.png)
+![Zonotopic bounds 2](examples/UnivariateNonLinear.png)
 
 ---
 ## License

@@ -7,14 +7,14 @@ class Zonotope:
         self.is_diagonal = is_diagonal
 
         if is_diagonal:
-            # Just store the diagonal elements - O(n) memory!
+            # Just store the diagonal elements - O(n) memory
             self.diagonal_generators = np.array(generators).reshape(-1)
             if self.diagonal_generators.shape[0] != self.centre.shape[0]:
                 raise ValueError(
                     "Diagonal generators must have same dimension as centre")
             self.d = self.centre.shape[0]
             self.m = self.d  # diagonal has n generators
-            self.generators = None  # Don't store full matrix
+            self.generators = None
         else:
             self.generators = np.atleast_2d(generators)        # shape (n, m)
             if self.generators.shape[0] != self.centre.shape[0]:
@@ -32,12 +32,10 @@ class Zonotope:
             new_diag = self.diagonal_generators + other.diagonal_generators
             return Zonotope(new_centre, new_diag, is_diagonal=True)
         elif self.is_diagonal:
-            # Convert self to dense, keep other as is
             self_gens = np.diag(self.diagonal_generators)
             new_generators = np.hstack((self_gens, other.generators))
             return Zonotope(new_centre, new_generators, is_diagonal=False)
         elif other.is_diagonal:
-            # Convert other to dense, keep self as is
             other_gens = np.diag(other.diagonal_generators)
             new_generators = np.hstack((self.generators, other_gens))
             return Zonotope(new_centre, new_generators, is_diagonal=False)
@@ -49,8 +47,6 @@ class Zonotope:
         new_centre = self.centre - other.centre
 
         if self.is_diagonal and other.is_diagonal:
-            # Diagonal - Diagonal needs both diagonals as generators
-            # Can't stay purely diagonal since we need both +self and -other
             new_generators = np.hstack((
                 np.diag(self.diagonal_generators),
                 -np.diag(other.diagonal_generators)
@@ -79,12 +75,10 @@ class Zonotope:
         centre = (lower + upper) / 2
         radii = (upper - lower) / 2
 
-        # INSTANT - no matrix created at all!
         return cls(centre, radii, is_diagonal=True)
 
     def output_interval(self):
         if self.is_diagonal:
-            # For diagonal: radius is just the absolute diagonal values
             radius = np.abs(self.diagonal_generators)
         else:
             radius = np.sum(np.abs(self.generators), axis=1)
@@ -101,8 +95,7 @@ class Zonotope:
         if self.is_diagonal:
             # A @ diag(d) = A with each column i scaled by d[i]
             # This is: A[:, i] * d[i] for each column
-            new_generators = A * self.diagonal_generators  # Broadcasting!
-            # Result is generally dense, so is_diagonal=False
+            new_generators = A * self.diagonal_generators
             return Zonotope(new_centre, new_generators, is_diagonal=False)
         else:
             new_generators = A @ self.generators
