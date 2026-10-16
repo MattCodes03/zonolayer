@@ -1,4 +1,3 @@
-from .core import Zonolayer
-from .zonotope import Zonotope
+from .zonolayer import Zonolayer
 
-__all__ = ["Zonolayer", "Zonotope"]
+__all__ = ["Zonolayer"]
