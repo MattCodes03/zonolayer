@@ -8,6 +8,7 @@ Developed with guidance and support from **[Marco de Angelis](https://github.com
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PyPI Version](https://img.shields.io/pypi/v/zonolayer)](https://pypi.org/project/zonolayer/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20428659.svg)](https://doi.org/10.5281/zenodo.23916121)
 
 **Zonolayer** is a Python package for **last-layer uncertainty modeling via zonotopic representations**.  
 It provides **zonotopic output bounds** for neural networks with interval-bounded outputs, enabling precise and interpretable uncertainty quantification in regression tasks.
