@@ -28,6 +28,23 @@ If you require more advanced interval arithmetic (e.g., using [`pyinterval`](htt
 IPM support using the [PyIPM library by J. Sadeghi](https://github.com/JCSadeghi/PyIPM)
 
 ---
+## Citation
+If this library has been of use for any work, please cite the following:
+```
+@software{mccann_2026_23916121,
+  author       = {McCann, Matthew and
+                  de Angelis, Marco and
+                  University of Strathclyde},
+  title        = {Zonolayer},
+  month        = nov,
+  year         = 2026,
+  publisher    = {Zenodo},
+  version      = {1.0.0},
+  doi          = {10.5281/zenodo.23916121},
+  url          = {https://doi.org/10.5281/zenodo.23916121},
+}
+```
+---
 
 ## Installation
 
